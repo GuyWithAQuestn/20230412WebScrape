@@ -6,6 +6,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 
+import time
+
+from bs4 import BeautifulSoup
+
+import SendDiscordMessage
+
 # Define the URL you want to scrape
 # url = 'https://www.bestbuy.com/site/wd-easystore-18tb-external-usb-3-0-hard-drive-black/6427995.p?skuId=6427995'
 # url = 'https://www.bestbuy.com/site/pny-geforce-rtx-3060-ti-8gb-gddr6-pci-express-4-0-graphics-card-with-dual-fan-black/6519166.p?skuId=6519166'
@@ -21,11 +27,21 @@ headers = {'User-Agent': ua.random}
 proxy = 'http://p.webshare.io:9999'
 
 
+def check_webpage_source_for_security_block(webpage_source, security_block):
+
+    soup = BeautifulSoup(webpage_source, 'html.parser')
+    if soup.findAll(text="Security Block!"):
+        print("Found a security block page. We can't move on yet and will need to search it again")
+    else:
+        security_block = False
+
+    return security_block
+
 def scrape_web_page(url):
     # Set up the Selenium driver with the proxy and headers
     options = Options()
     #    options.add_argument('--proxy-server={}'.format(proxy))  # Comment in/out for use of proxy
-    options.add_argument('user-agent={}'.format(headers['User-Agent']))  # Comment in/ out for change of headers
+#    options.add_argument('user-agent={}'.format(headers['User-Agent']))  # Comment in/ out for change of headers
     # options.add_argument('user-agent={}'.format(headers))
     driver = webdriver.Chrome(options=options)
 
@@ -75,40 +91,16 @@ def scrape_web_page(url):
     # Get the page content
     page_content = driver.page_source
 
+
+
     # Print the page content
     # print(page_content)
 
     # Get the page content
-    page_content = driver.execute_script("return document.documentElement.outerHTML")
-    # Save the page content to a file
-    with open('/Users/bryan/Downloads/output.html', 'w', encoding='utf-8') as f:
-        f.write(page_content)
-
-    #
-    # # Get the page content
     # page_content = driver.execute_script("return document.documentElement.outerHTML")
-    #
-    # # Get the CSS styles
-    # css_styles = ""
-    # style_elements = driver.find_elements(By.XPATH, "//style")
-    # for element in style_elements:
-    #     css_styles += element.get_attribute("innerHTML") + "\n"
-    #
-    # link_elements = driver.find_elements(By.XPATH, "//link[@rel='stylesheet']")
-    # for element in link_elements:
-    #     css_url = element.get_attribute("href")
-    #     css_content = ""
-    #     with open(css_url, "r", encoding="utf-8") as f:
-    #         css_content = f.read()
-    #     css_styles += css_content + "\n"
-    #
     # # Save the page content to a file
-    # with open('output.html', 'w', encoding='utf-8') as f:
-    #     f.write("<html>\n<head>\n<style>\n")
-    #     f.write(css_styles)
-    #     f.write("</style>\n</head>\n<body>\n")
+    # with open('/Users/bryan/Downloads/output.html', 'w', encoding='utf-8') as f:
     #     f.write(page_content)
-    #     f.write("\n</body>\n</html>")
 
     # Close the driver
     driver.quit()
@@ -117,5 +109,27 @@ def scrape_web_page(url):
 
 
 def mainBody(received_url):
-    webpage_source = scrape_web_page(received_url)
+
+    security_block = True
+    number_of_times_security_block_comes_up = 0
+
+    while security_block == True:
+
+        webpage_source = scrape_web_page(received_url)
+        security_block = check_webpage_source_for_security_block(webpage_source, security_block)
+
+        if security_block == True:
+            #security page detected, wait 5 min before trying again
+            number_of_times_security_block_comes_up = number_of_times_security_block_comes_up + 1
+            if number_of_times_security_block_comes_up > 5:
+                SendDiscordMessage.mainBody("A security page has come up 5 time in a row")
+                number_of_times_security_block_comes_up = 0
+            time.sleep(300)
+        else:
+            print("moving on, no security page")
+            number_of_times_security_block_comes_up = 0
+
+
     return webpage_source
+
+
